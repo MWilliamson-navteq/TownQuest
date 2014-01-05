@@ -1,12 +1,14 @@
 package com.mwilliamson.townquest;
 
-import com.mwilliamson.townquest.game.GameLoop;
-import org.lwjgl.LWJGLException;
+import com.mwilliamson.townquest.app.GameLoop;
 
 public class Main
 {
-    public static void main(String[] args) throws LWJGLException {
-        GameLoop gameLoop = new GameLoop();
-        gameLoop.start();
+    public static void main(String[] args)
+    {
+        GameLoop application = new GameLoop();
+        application.start();
     }
+
+
 }

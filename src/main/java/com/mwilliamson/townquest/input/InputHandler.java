@@ -1,8 +1,11 @@
 package com.mwilliamson.townquest.input;
 
-import org.lwjgl.input.Keyboard;
-import org.lwjgl.input.Mouse;
+import com.jme3.input.InputManager;
+import com.jme3.input.KeyInput;
+import com.jme3.input.MouseInput;
+import com.jme3.input.controls.*;
 
+import java.lang.reflect.Field;
 import java.util.LinkedList;
 
 public class InputHandler
@@ -13,108 +16,130 @@ public class InputHandler
     private static LinkedList<MouseListener> mouseListeners = new LinkedList<MouseListener>();
     private static LinkedList<KeyPressListener> keyPressListeners = new LinkedList<KeyPressListener>();
 
-    private int oldMouseX = 0;
-    private int oldMouseY = 0;
-    private boolean oldLeftDown = false;
-    private boolean oldRightDown = false;
-
-    public void handleInput()
+    public void setup(InputManager inputManager)
     {
-        handleKeyboard();
+        setupKeyBoard(inputManager);
+        setupMouse(inputManager);
 
-        handleMouseMovement();
-        handleMouseButtons();
-        handleMouseScroll();
     }
 
-    private void handleKeyboard()
+    private void setupKeyBoard(InputManager inputManager)
     {
-        while (Keyboard.next())
+        inputManager.clearMappings();
+        try
         {
-            int key = Keyboard.getEventKey();
-           for (KeyPressListener keyPressListener : keyPressListeners)
-           {
-               if (Keyboard.getEventKeyState())
-                   keyPressListener.onKeyDown(key);
-               else
-                   keyPressListener.onKeyUp(key);
-           }
-
+            for (final Field f : KeyInput.class.getDeclaredFields())
+            {
+                final String keyName = f.getName();
+                final int keyValue = f.getInt(KeyInput.class);
+                inputManager.addMapping(keyName, new KeyTrigger(keyValue));
+                inputManager.addListener(new ActionListener()
+                {
+                    @Override
+                    public void onAction(String name, boolean isDown, float tpf)
+                    {
+                        if (name.equals(keyName))
+                        {
+                            for (KeyPressListener keyPressListener : keyPressListeners)
+                            {
+                                if (isDown)
+                                    keyPressListener.onKeyDown(keyValue);
+                                else
+                                    keyPressListener.onKeyUp(keyValue);
+                            }
+                        }
+                    }
+                }, keyName);
+            }
+        }
+        catch (IllegalAccessException e)
+        {
+            throw new RuntimeException("Error setting up key input!");
         }
     }
 
-    private void handleMouseScroll()
+    private void setupMouse(InputManager inputManager)
     {
-        int delta = Mouse.getDWheel();
-        if (delta != 0)
+        try
         {
-            for (MouseListener listener : mouseListeners)
+            for (final Field f : MouseInput.class.getDeclaredFields())
             {
-                if (delta > 0)
-                    listener.onScrollUp();
+                final String keyName = f.getName();
+                final int keyValue = f.getInt(MouseInput.class);
+                // Hacky, but there isn't a good solution since the axis and button movements are mixed together
+                if (keyName.contains("BUTTON"))
+                {
+                    inputManager.addMapping(keyName, new MouseButtonTrigger(keyValue));
+                    inputManager.addListener(new ActionListener()
+                    {
+                        @Override
+                        public void onAction(String name, boolean isDown, float tpf)
+                        {
+                            if (name.equals(keyName))
+                            {
+                                handleMouseClicks(keyValue, isDown);
+                            }
+                        }
+                    }, keyName);
+                }
                 else
-                    listener.onScrollDown();
+                {
+                    // Figure out mouse movement
+                    /*inputManager.addMapping(keyName, new MouseAxisTrigger(keyValue, true));
+                    inputManager.addListener(new AnalogListener()
+                    {
+                        @Override
+                        public void onAnalog(String s, float v, float v2)
+                        {
+                            mouseListeners.get().
+                        }
+                    })*/
+                }
+
+
             }
         }
-    }
-
-    private void handleMouseButtons()
-    {
-        boolean isLeftDown = Mouse.isButtonDown(BUTTON_LEFT);
-        boolean isRightDown = Mouse.isButtonDown(BUTTON_RIGHT);
-
-        if (isLeftDown != oldLeftDown)
+        catch (IllegalAccessException e)
         {
-            if (isLeftDown)
-            {
-                for (MouseListener listener : mouseListeners)
-                {
-                    listener.onLeftClickDown();
-                }
-            }
-            else
-            {
-                for (MouseListener listener : mouseListeners)
-                {
-                    listener.onLeftClickUp();
-                }
-            }
+            throw new RuntimeException("Error setting up key input!");
         }
-
-        if (isRightDown != oldRightDown)
-        {
-            if (isRightDown)
-            {
-                for (MouseListener listener : mouseListeners)
-                {
-                    listener.onRightCLickDown();
-                }
-            }
-            else
-            {
-                for (MouseListener listener : mouseListeners)
-                {
-                    listener.onRightClickUp();
-                }
-            }
-        }
-
-        oldLeftDown = isLeftDown;
-        oldRightDown = isRightDown;
     }
 
     private void handleMouseMovement()
     {
-        int mouseX = Mouse.getX();
-        int mouseY = Mouse.getY();
-        if (mouseX != oldMouseX && mouseY != oldMouseY)
+
+    }
+
+    private void handleMouseClicks(int button, boolean isDown)
+    {
+        switch (button)
         {
-            for (MouseListener listener : mouseListeners)
+            case MouseInput.BUTTON_LEFT:
             {
-                listener.onMove(mouseX, mouseY);
+                for (MouseListener mouseListener : mouseListeners)
+                {
+                    if (isDown)
+                        mouseListener.onLeftClickDown();
+                    else
+                        mouseListener.onLeftClickUp();
+                }
+                break;
             }
-            oldMouseX = mouseX;
-            oldMouseY = mouseY;
+            case MouseInput.BUTTON_RIGHT:
+            {
+                for (MouseListener mouseListener : mouseListeners)
+                {
+                    if (isDown)
+                        mouseListener.onRightCLickDown();
+                    else
+                        mouseListener.onRightClickUp();
+                }
+                break;
+            }
+            case MouseInput.BUTTON_MIDDLE:
+            {
+                break;
+            }
         }
     }
 
