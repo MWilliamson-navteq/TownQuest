@@ -7,7 +7,7 @@ public class GameEvent
     private Interactable source;
     private EventAction action;
 
-    public GameEvent(Interactable target, EventType eventType, Interactable source, EventAction action)
+    public GameEvent(Interactable source, Interactable target, EventType eventType, EventAction action)
     {
         this.target = target;
         this.eventType = eventType;

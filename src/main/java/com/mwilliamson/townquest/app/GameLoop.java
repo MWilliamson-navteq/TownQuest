@@ -1,32 +1,37 @@
 package com.mwilliamson.townquest.app;
 
 import com.jme3.app.SimpleApplication;
-import com.jme3.collision.CollisionResult;
-import com.jme3.collision.CollisionResults;
+import com.jme3.input.ChaseCamera;
 import com.jme3.input.KeyInput;
 import com.jme3.material.Material;
 import com.jme3.math.ColorRGBA;
-import com.jme3.math.Ray;
 import com.jme3.math.Vector3f;
 import com.jme3.niftygui.NiftyJmeDisplay;
 import com.jme3.scene.Geometry;
 import com.jme3.scene.Node;
 import com.jme3.scene.shape.Box;
+import com.jme3.scene.shape.Sphere;
 import com.jme3.system.AppSettings;
+import com.jme3.util.SkyFactory;
+import com.mwilliamson.townquest.app.controls.RotateControl;
+import com.mwilliamson.townquest.game.event.EventManager;
 import com.mwilliamson.townquest.input.InputHandler;
+import com.mwilliamson.townquest.input.InteractableMouse;
 import com.mwilliamson.townquest.input.KeyPressListener;
-import com.mwilliamson.townquest.input.MouseListener;
 import de.lessvoid.nifty.Nifty;
 import de.lessvoid.nifty.builder.ScreenBuilder;
 import de.lessvoid.nifty.screen.DefaultScreenController;
 
 public class GameLoop extends SimpleApplication
 {
+    private InteractableMouse mouse;
     private final InputHandler inputHandler = new InputHandler();
     private static final int TARGET_FPS = 120;
     private Node pivot;
     private Geometry blueBox;
     private Geometry redBox;
+    private ChaseCamera chaseCamera;
+
     public GameLoop()
     {
         setShowSettings(false);
@@ -36,15 +41,21 @@ public class GameLoop extends SimpleApplication
     @Override
     public void simpleInitApp()
     {
+        rootNode.attachChild(SkyFactory.createSky(
+                assetManager, "Textures/Sky/Bright/BrightSky.dds", false));
         inputHandler.setup(inputManager);
         getFlyByCamera().setEnabled(false);
         /** create a blue box at coordinates (1,-1,1) */
-        Box box1 = new Box(1,1,1);
+        Sphere box1 = new Sphere(180,180,1f);
         blueBox = new Geometry("Box", box1);
         blueBox.setLocalTranslation(new Vector3f(1,-1,1));
         Material mat1 = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
         mat1.setColor("Color", ColorRGBA.Blue);
         blueBox.setMaterial(mat1);
+        EventManager.createInteractableGeomatry(blueBox);
+        blueBox.setUserData("movingUp", true);
+
+        mouse = new InteractableMouse(cam, inputManager, rootNode);
 
         /** create a red box straight above the blue one at (1,3,1) */
         Box box2 = new Box(1,1,1);
@@ -62,9 +73,8 @@ public class GameLoop extends SimpleApplication
         pivot.attachChild(blueBox);
         pivot.attachChild(redBox);
 
-  /*      Material background = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
-        background.setColor("Color", ColorRGBA.White);
-        getRootNode().setMaterial(background);*/
+        EventManager.createInteractableGeomatry(blueBox);
+        EventManager.createInteractableGeomatry(redBox);
 
         InputHandler.addKeyPressListener(new KeyPressListener()
         {
@@ -81,53 +91,7 @@ public class GameLoop extends SimpleApplication
             }
         });
 
-        InputHandler.addMouseListener(new MouseListener()
-        {
-            @Override
-            public void onMove(int endX, int endY)
-            {
-            }
 
-            @Override
-            public void onLeftClickDown()
-            {
-                for (CollisionResult collisionResults : checkMouseCollision(rootNode))
-                {
-                    //collisionResults.getGeometry().rotate(1.0f, 0, 0);
-                    collisionResults.getGeometry().setUserData("isSpinning", false);
-                }
-            }
-
-            @Override
-            public void onRightCLickDown()
-            {
-            }
-
-            @Override
-            public void onLeftClickUp()
-            {
-                for (CollisionResult collisionResults : checkMouseCollision(rootNode))
-                {
-                    //collisionResults.getGeometry().rotate(1.0f, 0, 0);
-                    collisionResults.getGeometry().setUserData("isSpinning", true);
-                }
-            }
-
-            @Override
-            public void onRightClickUp()
-            {
-            }
-
-            @Override
-            public void onScrollUp()
-            {
-            }
-
-            @Override
-            public void onScrollDown()
-            {
-            }
-        });
 
         Box box = new Box(15, .2f, 15);
         Geometry floor = new Geometry("the Floor", box);
@@ -160,20 +124,9 @@ public class GameLoop extends SimpleApplication
             }}.build(nifty));
 
 
-
-    }
-
-    private CollisionResults checkMouseCollision(Node geometryCollection)
-    {
-        Vector3f mousePosition = cam.getWorldCoordinates(inputManager.getCursorPosition(), 0f);
-        Vector3f direction = cam.getWorldCoordinates(inputManager.getCursorPosition(), 1f); // Add 1f to the Z projection to make sure it's "in front" of the camera
-        direction.subtractLocal(mousePosition).normalizeLocal();
-        Ray ray = new Ray(mousePosition, direction);
-        CollisionResults results = new CollisionResults();
-
-        geometryCollection.collideWith(ray, results);
-
-        return results;
+        chaseCamera = new ChaseCamera(cam, blueBox, inputManager);
+       // jme3tools.optimize.GeometryBatchFactory.optimize(rootNode);
+        redBox.addControl(new RotateControl());
     }
 
     @Override
@@ -181,9 +134,23 @@ public class GameLoop extends SimpleApplication
     {
         //pivot.rotate(0.01f, 0, 0);
         if (blueBox.getUserData("isSpinning"))
-            blueBox.rotate(0, 1f * tpf, 0);
-        if (redBox.getUserData("isSpinning"))
-            redBox.rotate(0, 2f * tpf, 0);
+        {
+            float y = blueBox.getLocalTransform().getTranslation().getY();
+            if (y < -1f)
+                blueBox.setUserData("movingUp", true);
+            else if (y > 1f)
+                blueBox.setUserData("movingUp", false);
+
+            if (blueBox.getUserData("movingUp"))
+                blueBox.move(0f, 1f * tpf, 0f);
+            else
+                blueBox.move(0f, -1f * tpf, 0f);
+        }
+
+/*        if (redBox.getUserData("isSpinning"))
+            redBox.rotate(0, 2f * tpf, 0);*/
+
+        //pivot.rotate(0f, 0f, 1f * tpf);
         checkFPS(tpf);
     }
 
