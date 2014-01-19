@@ -53,7 +53,7 @@ public class InteractableMouse extends Interactable
                         }
                     });*/
                     //collisionResults.getGeometry().setUserData("isSpinning", false);
-                    interactableGeometry.getGeometry().setUserData("isSpinning", false);
+                    //interactableGeometry.getGeometry().setUserData("isSpinning", false);
 
                 }
             }

@@ -1,26 +1,29 @@
 package com.mwilliamson.townquest.app;
 
 import com.jme3.app.SimpleApplication;
+import com.jme3.asset.plugins.FileLocator;
 import com.jme3.input.ChaseCamera;
 import com.jme3.input.KeyInput;
+import com.jme3.light.AmbientLight;
 import com.jme3.material.Material;
 import com.jme3.math.ColorRGBA;
 import com.jme3.math.Vector3f;
-import com.jme3.niftygui.NiftyJmeDisplay;
+import com.jme3.renderer.queue.RenderQueue;
 import com.jme3.scene.Geometry;
 import com.jme3.scene.Node;
+import com.jme3.scene.Spatial;
 import com.jme3.scene.shape.Box;
+import com.jme3.scene.shape.Quad;
 import com.jme3.scene.shape.Sphere;
 import com.jme3.system.AppSettings;
 import com.jme3.util.SkyFactory;
+import com.jme3.water.SimpleWaterProcessor;
 import com.mwilliamson.townquest.app.controls.RotateControl;
+import com.mwilliamson.townquest.game.character.Character;
 import com.mwilliamson.townquest.game.event.EventManager;
 import com.mwilliamson.townquest.input.InputHandler;
 import com.mwilliamson.townquest.input.InteractableMouse;
 import com.mwilliamson.townquest.input.KeyPressListener;
-import de.lessvoid.nifty.Nifty;
-import de.lessvoid.nifty.builder.ScreenBuilder;
-import de.lessvoid.nifty.screen.DefaultScreenController;
 
 public class GameLoop extends SimpleApplication
 {
@@ -41,8 +44,11 @@ public class GameLoop extends SimpleApplication
     @Override
     public void simpleInitApp()
     {
-        rootNode.attachChild(SkyFactory.createSky(
-                assetManager, "Textures/Sky/Bright/BrightSky.dds", false));
+        Node skyNode = new Node("skyNode");
+        Spatial sky = SkyFactory.createSky(assetManager, "Textures/Sky/Bright/BrightSky.dds", false);
+        skyNode.attachChild(sky);
+
+        rootNode.attachChild(skyNode);
         inputHandler.setup(inputManager);
         getFlyByCamera().setEnabled(false);
         /** create a blue box at coordinates (1,-1,1) */
@@ -94,39 +100,64 @@ public class GameLoop extends SimpleApplication
 
 
         Box box = new Box(15, .2f, 15);
-        Geometry floor = new Geometry("the Floor", box);
+        /*Geometry floor = new Geometry("the Floor", box);
         floor.setLocalTranslation(0, -4, -5);
         Material mat11 = new Material(assetManager, "Common/MatDefs/Misc/Unshaded.j3md");
         mat11.setColor("Color", ColorRGBA.Gray);
         floor.setMaterial(mat11);
-        rootNode.attachChild(floor);
+        rootNode.attachChild(floor);*/
 
         blueBox.setUserData("isSpinning", true);
         redBox.setUserData("isSpinning", true);
 
-        NiftyJmeDisplay niftyDisplay = new NiftyJmeDisplay( assetManager, inputManager, audioRenderer, guiViewPort);
-        Nifty nifty = niftyDisplay.getNifty();
-        nifty.setDebugOptionPanelColors(true);
-        guiViewPort.addProcessor(niftyDisplay);
+        //CameraNode cameraNode = new CameraNode("cameraNode", cam);
+        //cameraNode.setControlDir(CameraControl.ControlDirection.SpatialToCamera);
+        com.mwilliamson.townquest.game.character.Character aelis = new Character(assetManager, rootNode, cam);
 
-        nifty.addScreen("start", new ScreenBuilder("start")
-        {
-            {
-                controller(new DefaultScreenController());
-                // <!-- ... -->
-            }
-        }.build(nifty));
+        //chaseCamera = new ChaseCamera(cam, aelis.getSpatial(), inputManager);
+        //rootNode.attachChild(cameraNode);
+        //cameraNode.setLocalTranslation(0f, 3f, 0f);
 
-        nifty.addScreen("hud", new ScreenBuilder("hud")
-        {{
-                controller(new DefaultScreenController());
-                // <!-- ... -->
-            }}.build(nifty));
-
-
-        chaseCamera = new ChaseCamera(cam, blueBox, inputManager);
        // jme3tools.optimize.GeometryBatchFactory.optimize(rootNode);
         redBox.addControl(new RotateControl());
+
+        AmbientLight sun = new AmbientLight();
+        //sun.setDirection(new Vector3f(-0.1f, -0.7f, -1.0f));
+        rootNode.addLight(sun);
+        //setupCamera();
+        setupWorld();
+
+
+    }
+
+    private void setupWorld()
+    {
+        Node worldNode = new Node();
+        rootNode.attachChild(worldNode);
+
+        assetManager.registerLocator("C://Projects//TownQuest//assets", FileLocator.class);
+        assetManager.registerLocator("C://Projects//TownQuest//assets/Models", FileLocator.class);
+        Spatial terrain = assetManager.loadModel("obj.j3o");
+        terrain.setLocalScale(3.0f);
+        worldNode.attachChild(terrain);
+
+
+        SimpleWaterProcessor waterProcessor = new SimpleWaterProcessor(assetManager);
+        waterProcessor.setReflectionScene(getRootNode().getChild("skyNode"));
+
+        viewPort.addProcessor(waterProcessor);
+
+        waterProcessor.setWaterDepth(1);         // transparency of water
+        waterProcessor.setDistortionScale(1f); // strength of waves
+        waterProcessor.setWaveSpeed(0.05f);       // speed of waves
+
+        Quad quad = new Quad(40,40);
+
+        Geometry water=new Geometry("water", quad);
+        water.setShadowMode(RenderQueue.ShadowMode.Receive);
+        water.setMaterial(waterProcessor.getMaterial());
+        water.setLocalTranslation(0f, -2f, 40f);
+        worldNode.attachChild(water);
     }
 
     @Override
